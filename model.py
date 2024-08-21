@@ -34,8 +34,14 @@ def createData():
 
     y_min = np.min(y)
     y_max = np.max(y)
-    #y = (y - y_min) / (y_max - y_min)
+
+    print (f"Range before normalizing:{y_max-y_min}. Avg value: {np.mean(y)}")
+
+    alpha = 100
+
+    y = alpha * (y - y_min) / (y_max - y_min)
     y = y.astype(np.float32)
+    print (f"Range before normalizing:{np.max(y)-np.min(y)}. Avg value: {np.mean(y)}")
 
     print(X.shape)
     print(y.shape)
@@ -90,11 +96,14 @@ train_dataloader = DataLoader(train_dataset, batch_size=64, shuffle=True)
 
 model = ELEVENBETA()
 criterion = nn.MSELoss()
-optimizer = optim.Adam(model.parameters(), lr=0.005)
+optimizer = optim.Adam(model.parameters(), lr=0.0001)
 print ("beginning epochs")
+epsilon = 0.1  # Define the tolerance range
 
-for epoch in range(3):
+for epoch in range(20):
     running_loss = 0.0
+    correct_predictions = 0
+    total_predictions = 0
     for inputs, labels in tqdm(train_dataloader, desc=f"Running Epoch {epoch+1}"):
         optimizer.zero_grad()
         outputs = model(inputs)
@@ -103,12 +112,15 @@ for epoch in range(3):
         #torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)  # Gradient clipping
         optimizer.step()
         running_loss += loss.item()
-
-    print(f'Epoch {epoch+1}, Loss: {running_loss/len(train_dataloader)}')
+        _, predicted = torch.max(outputs, 1)
+        correct_predictions += ((outputs - labels).abs() < epsilon).sum().item()
+        total_predictions += labels.size(0)
+    epoch_accuracy = (correct_predictions / total_predictions) * 50
+    print(f'Epoch {epoch+1}, Loss: {running_loss/len(train_dataloader)}, Accuracy: {epoch_accuracy:.2f}%')
 
 print('Finished Training')
 
-torch.save(model.state_dict(), 'smiles_cnn_model.pth')
+torch.save(model.state_dict(), 'Data_Base_Building/smiles_cnn_model.pth')
 
 
 X_test_tensor = torch.tensor(X_test, dtype=torch.float32)
@@ -121,11 +133,18 @@ test_dataloader = DataLoader(test_dataset, batch_size=64, shuffle=False)
 model.eval()
 with torch.no_grad():
     test_loss = 0.0
+    correct_predictions = 0
+    total_predictions = 0
     for inputs, labels in test_dataloader:
         outputs = model(inputs)
         loss = criterion(outputs, labels)
         test_loss += loss.item()
+        _, predicted = torch.max(outputs, 1)
+        correct_predictions += ((outputs - labels).abs() < epsilon).sum().item()
+        total_predictions += labels.size(0)
+        
+    test_accuracy = (correct_predictions / total_predictions) * 100
 
-    print(f'Test Loss: {test_loss/len(test_dataloader)}')
+    print(f'Test Loss: {test_loss/len(test_dataloader)}, Test accuracy: {test_accuracy}')
 
 
